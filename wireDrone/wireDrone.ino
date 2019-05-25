@@ -139,7 +139,7 @@ void doCommand(int command) {
     }
     steppers.moveTo(lline);
   }
-  if(command == 'G') {
+  if(command == 'G') {    // Go to a position
     for(int i = 0; i < 4; i++) {
       lline[i] = Serial.parseInt();
     }
@@ -163,9 +163,6 @@ void doCommand(int command) {
     // read 4 more values from serial port & assume that is the line lengths
     for(int i = 0; i < 3; i++)
       current[i] = Serial.parseInt();
-  }
-  if(command == 'G') {    // Go to a position
-    // read 3 more values from serial port & kick off the move
   }
 }
 
