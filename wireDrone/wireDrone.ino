@@ -26,7 +26,7 @@ MultiStepper steppers;
 
 const double WIDTH = 150;    // Measure in real word units (inches) of movement area
 const double LENGTH = 188;   // Measure in real word units (inches) of movement area
-const double stepsPerUnit = 50;    // number of steps per unit (inch) on the stepper motors (eg 4 inches per 200 steps = 50)
+const double stepsPerUnit = 38;    // number of steps per unit (inch) on the stepper motors (eg 4 inches per 200 steps = 50)
 const double maxMovePerStep = 4;  // the most distance to move in single (should likely be determined by multiple of stringStep)
 
 double anchor[][3] = {{0,0,0}, {0,LENGTH,0}, {WIDTH, LENGTH,0}, {WIDTH,0,0}};  // location in 3D of the anchor loops
@@ -35,7 +35,7 @@ double lineOffset[] = {0,0,0,0};    // offset between stepper motor and line out
 double line[] = {0,0,0,0};    // Array of line lengths
 long lline[] = {0,0,0,0};
 
-double current[] = {75, 94, 37};   // Current position of drone - note the positive z shouldn't matter as long it's consistent
+double current[] = {75, 94, 18};   // Current position of drone - note the positive z shouldn't matter as long it's consistent
 double target[] = {0,0,0};    // Target position of drone
 double next[] = {0,0,0};      // incremental step position
 double temp[] = {0,0,0};      // temp array; eg. holding difference in position
@@ -82,8 +82,7 @@ void setup() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);    
 
-  calibarateOffsets();
-    
+  calibarateOffsetsFromPosition();   
 }
 
 /** Main loop */
@@ -141,7 +140,15 @@ void doCommand(int command) {
       current[i] = Serial.parseInt();
     }
     // Compute the offsets for the stepper motors awareness
-    calibarateOffsets();
+    calibarateOffsetsFromPosition();
+  }
+  if(command == 'L') {    // Set the current line lenghts (4 int to follow)
+    // read 4 more values from serial port & assume that is the current position
+    for(int i = 0; i < 3; i++) {
+      line[i] = Serial.parseInt();
+    }
+    // Compute the offsets for the stepper motors awareness
+    calibarateOffsetsFromLines();
   }
   if(command == 'M') {    // Move to a new position - 3 numbers to follow
     for(int i = 0; i < 3; i++) {
@@ -235,11 +242,17 @@ void computeLineLength(double location[]) {
 }
 
 /** Calibrate the offsets of the stepper motors based on the length array and current position */
-void calibarateOffsets() {
+void calibarateOffsetsFromPosition() {
   for(int i = 0; i < 4; i++) {
     line[i] = distance(current, anchor[i]);
     lineOffset[i] = (long) (stepsPerUnit * line[i]) - lline[i];
     Serial.println(lineOffset[i]);
+  }  
+}
+/** Calibrate the offsets of the stepper motors based on the length array and current position */
+void calibarateOffsetsFromLines() {
+  for(int i = 0; i < 4; i++) {
+    // TODO
   }  
 }
 
