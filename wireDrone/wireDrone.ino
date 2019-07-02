@@ -1,4 +1,9 @@
-/*     
+/* 
+ *  This sketch  is to control 4 stepper motors that give control to spools of wire that control the location
+ *  of a 4 wire drone.
+ *  Author: Michael Concannon
+ *  
+ *  Notes:    
  *  VREF for A4988 = 1.7 * .4 = .68
  */
 #include <AccelStepper.h>
@@ -29,14 +34,14 @@ const double LENGTH = 188;   // Measure in real word units (inches) of movement 
 const double stepsPerUnit = 38;    // number of steps per unit (inch) on the stepper motors (eg 4 inches per 200 steps = 50)
 const double maxMovePerStep = 4;  // the most distance to move in single (should likely be determined by multiple of stringStep)
 
-double anchor[][3] = {{0,0,0}, {0,LENGTH,0}, {WIDTH, LENGTH,0}, {WIDTH,0,0}};  // location in 3D of the anchor loops
-double lineOffset[] = {0,0,0,0};    // offset between stepper motor and line out
-
-double line[] = {0,0,0,0};    // Array of line lengths
-long lline[] = {0,0,0,0};
+double anchor[][3] = {{0,0,0}, {0,LENGTH,0}, {WIDTH, LENGTH,0}, {WIDTH,0,0}};  // location in 3D of the anchors
+double lineOffset[] = {0,0,0,0};    // offset between stepper motor and line out - in inches
+double line[] = {0,0,0,0};    // Array of line lengths - in inches
 
 double current[] = {75, 94, 18};   // Current position of drone - note the positive z shouldn't matter as long it's consistent
 double target[] = {0,0,0};    // Target position of drone
+
+long lline[] = {0,0,0,0};     // Temporary array for steps on the motors
 double next[] = {0,0,0};      // incremental step position
 double temp[] = {0,0,0};      // temp array; eg. holding difference in position
 
@@ -48,8 +53,8 @@ int stepCount = 0;
 /** Main setup */
 void setup() {  
   
-  double maxxSpeed = 400.0;
-  double acceleration = 100.0;
+  double maxxSpeed = 100.0;
+  double acceleration = 20.0;
 
   stepperX.setEnablePin(MOTOR_X_ENABLE_PIN);
   stepperX.setPinsInverted(false, false, true);
@@ -82,24 +87,23 @@ void setup() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);    
 
-  calibarateOffsetsFromPosition();   
+  //calibarateOffsetsFromPosition();   
 }
 
 /** Main loop */
 void loop() {
   doRead();
   // If steppers need to run, then run
-  if(steppers.run()) {
-    if(!midStep) {
-      Serial.println("Taking a step");
-      midStep = true; 
-    }
-  } else {    // We are not in the middle of a step
+  if(!steppers.run()) {     // We are not in the middle of a step
     if(midMotion) {
-      midMotion = advance();  // This advances the stepper locations, so the next loop will trigger midStep back to true
+      midMotion = advance();  // This advances the stepper locations, so the next loop have steps to do
       printCurrentPosition();
     }
   }
+}
+
+void debug(String s) {
+  Serial.println(s);  
 }
 
 /** Read the serial port & run a command */
@@ -110,8 +114,16 @@ void doRead() {
   }
 }
 
+/** Parse a string into a number  */
+int parseInteger(String s, int from, int to) {
+  char carray[6];
+  s.substring(from, to).toCharArray(carray, to - from + 1);
+  int i = atoi(carray);
+  return i;
+}
+
 /** Parse a string into a number */
-int parseString(String s, int from, int to) {
+int parseDouble(String s, int from, int to) {
   char carray[6];
   s.substring(from, to).toCharArray(carray, to - from + 1);
   int i = atoi(carray);
@@ -120,9 +132,22 @@ int parseString(String s, int from, int to) {
 
 /** Perform an action */
 void doCommand(int command) {
-  if(command == 'G') {    // Go to a position
+  if(command == 'G') {    // Go to a position - followed by 4 line lengths for the steppers (shouldn't be used)
     for(int i = 0; i < 4; i++) {
       lline[i] = Serial.parseInt();
+    }
+    steppers.moveTo(lline);
+  }
+  if(command == 'H') {    // Move an axis in inches
+    int axis = Serial.parseInt();
+    float inches = Serial.parseFloat();
+    lline[axis] = lline[axis] + (inches * stepsPerUnit);
+    steppers.moveTo(lline);
+  }
+  if(command == 'A') {    // Adjust all strings
+    for(int i = 0; i < 4; i++) {
+      float inches = Serial.parseFloat();
+      lline[i] = lline[i] + (inches * stepsPerUnit);
     }
     steppers.moveTo(lline);
   }
@@ -141,6 +166,11 @@ void doCommand(int command) {
     }
     // Compute the offsets for the stepper motors awareness
     calibarateOffsetsFromPosition();
+  }
+  if(command == 'C') {    // Calibrate a given string - followed by string number (0,1,2,3) and length in inched
+    int axis = Serial.parseInt();
+    line[axis] = Serial.parseFloat();
+    lineOffset[axis] = (long) (stepsPerUnit * line[axis]) - lline[axis];
   }
   if(command == 'L') {    // Set the current line lenghts (4 int to follow)
     // read 4 more values from serial port & assume that is the current position
@@ -186,7 +216,7 @@ void printLineLengths() {
     }
 }
 /** Print current string step counts to Serial */
-void printLineSteps() {
+void printLineSteps() { 
     Serial.println("lline");
     for(int i = 0; i < 4; i++) {
       Serial.println(lline[i]);  
@@ -263,4 +293,3 @@ double distance(double from[], double to[]) {
     square += (from[i] - to[i]) * (from[i] - to[i]);
   return sqrt(square);
 }
-
