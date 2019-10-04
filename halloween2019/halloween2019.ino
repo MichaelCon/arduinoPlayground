@@ -1,4 +1,5 @@
-#include <Servo.h> 
+#include <Servo.h>
+#include <Ethernet.h>
 
 /// Walk through the pins
 #define SERIAL_IN 0
@@ -38,6 +39,10 @@ long armedTimer = 0;
 
 int counter = 0;
 
+byte mac[] = { 0xDE, 0xEF, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
+byte ip[] = { 192, 168, 0, 21 }; // arduino server ip in lan
+EthernetServer server(80); //arduino server port
+
 void setup() {
   // initialize digital pins.
   pinMode(POSITIVE_MOTOR, OUTPUT);
@@ -57,6 +62,15 @@ void setup() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);    
   debug("setup complete");
+
+  // Network start
+  Ethernet.begin(mac, ip);
+  server.begin();
+  debug("Setup complete");
+
+  // disable SD card
+  pinMode(SD_CARD_BLOCK, OUTPUT);
+  digitalWrite(SD_CARD_BLOCK, HIGH);
 }
 
 void loop() {
@@ -82,6 +96,66 @@ void loop() {
   //Serial.println(readDistanceLong());
   checkTimers();
   delay(20);
+}
+
+void checkWebRequests() {
+  // Create a client connection
+  EthernetClient client = server.available();
+  if (client) {
+    String readString;
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+
+        //read char by char HTTP request
+        if (readString.length() < 100) {
+          //store characters to string 
+          readString += c; 
+        } 
+
+        //if this is the end of a single line
+        if (c == '\n') {
+          //debug(readString);
+          delay(1);
+
+          // The loop ignore all string that are not a get request
+          if(readString.indexOf("GET") == 0) {
+            int commandLocation = readString.indexOf("command=");
+            if(commandLocation > 0) {
+              int command = readString.charAt(commandLocation + 8);
+              doCommand(command);
+            }
+            htmlResponse(client);
+            //stopping client
+            client.stop();
+            //debug("closed client");
+          }
+          //clearing string for next read
+          readString="";
+        }
+      }
+    }
+  }
+}
+
+void htmlResponse(EthernetClient client) {
+    //now output HTML data header
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html");
+    client.println();
+    client.println("<HTML>");
+    client.println("<HEAD>");
+    client.println("<TITLE>2019 Halloween</TITLE>");
+    client.println("</HEAD>");
+    client.println("<BODY>");
+    client.println("<H1></H1>");
+    client.println("<a href=\"a\">Refresh</a><br/>");
+    client.println("<a href=\"a?command=1\">Right</a><br/>");
+    client.println("<a href=\"a?command=4\">Center</a><br/>");
+    client.println("<a href=\"a?command=7\">Left</a><br/>");
+    client.println("<br/>");
+    client.println("</BODY>");
+    client.println("</HTML>");
 }
 
 /** Read the serial port & run a command */
