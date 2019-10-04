@@ -1,11 +1,13 @@
 #define CONTROL_PIN 7
 #define DOOR_READ_PIN 2
+#define CHECK_DELAY 500
+
 #include <SPI.h>
 #include <Ethernet.h>
 
 // BEGIN values found in my private header file
 #include "secrets.h"
-const char* awsUrl = AWS_URL;
+// const char* awsUrl = AWS_URL;
 // END values found in my private file
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; //physical mac address
@@ -15,6 +17,9 @@ EthernetServer server(2147); //arduino server port
 
 String readString;
 String key = "BOGUS";
+
+long checkDoorAt = 0;
+int lastState = 2;
 
 //////////////////////
 /*
@@ -40,6 +45,17 @@ void makeNewKey() {
   key = letterK + n + letterK;
 }
 
+// Checks the door state every period defined by CHECK_DELAY
+void checkDoorState() {
+  if(millis() > checkDoorAt) {
+    if(digitalRead(DOOR_READ_PIN) != lastState) {
+      lastState = digitalRead(DOOR_READ_PIN);
+      reportDoorState(lastState);
+    }
+  }
+  checkDoorAt = millis() + CHECK_DELAY;
+}
+
 void loop(){
   // Create a client connection
   EthernetClient client = server.available();
@@ -63,7 +79,7 @@ void loop(){
 
           /////////////////////
           if(readString.indexOf("GET") == 0) {
-            if(readString.indexOf("garage.html") > 0) {
+            if(readString.indexOf("action") > 0) {
               //Serial.println(readString);
               //Serial.println(key);
               if(readString.indexOf(key) > 0) {  // check the secret
@@ -100,9 +116,12 @@ void wsResponse(EthernetClient client) {
     client.println("Content-Type: text/json");
     client.println();
     if(digitalRead(DOOR_READ_PIN) == HIGH)
-      client.println("{ \"doorstate\": \"open\" }");
+      client.print("{ \"doorstate\": \"open\" ,");
     else
-      client.println("{ \"doorstate\": \"closed\" }");
+      client.print("{ \"doorstate\": \"closed\" ,");
+    client.print("\"key\": \"");
+    client.print(key);
+    client.println("\"}");
 }
 
 void htmlResponse(EthernetClient client) {
@@ -136,5 +155,47 @@ void toggleDoor() {
   digitalWrite(CONTROL_PIN, LOW);
   delay(250);
   digitalWrite(CONTROL_PIN, HIGH);
-  
+}
+
+void reportDoorState(int doorState) {
+//  EthernetClient client;
+//
+//  // if you get a connection, report back via serial:
+//  if (client.connect(awsUrl, 80)) {
+//    // Make a HTTP request:
+//    client.print("GET /halloween/doorbell.jsp?command=");
+//    client.print(command);
+//    client.println(" HTTP/1.1");
+//    client.println("Host: www.ninox.com");
+//    client.println("Connection: close");
+//    client.println();
+//
+//    getPage(client);
+//  } 
+//  else {
+//    // if you didn't get a connection to the server:
+//    Serial.println("connection failed");
+//  }
+
+}
+
+void getPage(EthernetClient client)
+{
+  int reading = 1;
+  while(reading > 0) {
+    // if there are incoming bytes available 
+    // from the server, read them and print them:
+    if (client.available()) {
+      char c = client.read();
+      Serial.print(c);
+    }
+
+    // if the server's disconnected, stop the client:
+    if (!client.connected()) {
+      Serial.println();
+      Serial.println("disconnecting.");
+      client.stop();
+      reading = 0;
+    }
+  }
 }

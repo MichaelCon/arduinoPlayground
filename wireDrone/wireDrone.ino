@@ -114,22 +114,6 @@ void doRead() {
   }
 }
 
-/** Parse a string into a number  */
-int parseInteger(String s, int from, int to) {
-  char carray[6];
-  s.substring(from, to).toCharArray(carray, to - from + 1);
-  int i = atoi(carray);
-  return i;
-}
-
-/** Parse a string into a number */
-int parseDouble(String s, int from, int to) {
-  char carray[6];
-  s.substring(from, to).toCharArray(carray, to - from + 1);
-  int i = atoi(carray);
-  return i;
-}
-
 /** Perform an action */
 void doCommand(int command) {
   if(command == 'G') {    // Go to a position - followed by 4 line lengths for the steppers (shouldn't be used)
@@ -203,16 +187,25 @@ void moveTo(double position[]) {
 
 /** Print current position to Serial */
 void printCurrentPosition() {
-    Serial.println("Current");
+    Serial.print("Position: ");
     for(int i = 0; i < 3; i++) {
-      Serial.println(current[i]);
+      Serial.print(current[i]);
+      if(i < 3)
+        Serial.print(" - ");
+      else
+        Serial.println();
     }
 }
+
 /** Print current string lenghts to Serial */
 void printLineLengths() {
-    Serial.println("Line lengths");
+    Serial.print("Line lengths: ");
     for(int i = 0; i < 4; i++) {
       Serial.println((double) (lline[i] + lineOffset[i]) / stepsPerUnit);
+      if(i < 4)
+        Serial.print(" - ");
+      else
+        Serial.println();
     }
 }
 /** Print current string step counts to Serial */
