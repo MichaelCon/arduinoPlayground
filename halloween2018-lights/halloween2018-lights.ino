@@ -255,4 +255,3 @@ void setAll(uint32_t color) {
 void debug(String s) {
   Serial.println(s);
 }
-

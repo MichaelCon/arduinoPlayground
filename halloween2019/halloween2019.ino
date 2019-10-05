@@ -1,3 +1,4 @@
+// Guillotine control + skeleton
 #include <Servo.h>
 #include <Ethernet.h>
 
