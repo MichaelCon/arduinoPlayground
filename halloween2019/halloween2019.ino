@@ -43,6 +43,7 @@ int counter = 0;
 byte mac[] = { 0xDE, 0xEF, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
 byte ip[] = { 192, 168, 0, 21 }; // arduino server ip in lan
 EthernetServer server(80); //arduino server port
+IPAddress computer(192,168,0,100);
 
 void setup() {
   // initialize digital pins.
@@ -77,25 +78,15 @@ void setup() {
 void loop() {
   doRead();
   
-  // read the state of the pushbutton value:
-  int buttonState = digitalRead(UPPER_SWITCH);
-  // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
-  if (buttonState == HIGH) {
-    // turn LED on:
-    digitalWrite(LED, HIGH);
-  } else {
-    // turn LED off:
-    digitalWrite(LED, LOW);
-  }
-
   if(armed && bladeUp) {
     if(holeBlocked()) {
-      Serial.println("Blocked");
       dropTheBlade();
     }
   }
-  //Serial.println(readDistanceLong());
+
+  checkButton();
   checkTimers();
+  checkWebRequests();
   delay(20);
 }
 
@@ -103,15 +94,15 @@ void checkWebRequests() {
   // Create a client connection
   EthernetClient client = server.available();
   if (client) {
-    String readString;
+    String readS;
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
 
         //read char by char HTTP request
-        if (readString.length() < 100) {
+        if (readS.length() < 100) {
           //store characters to string 
-          readString += c; 
+          readS += c; 
         } 
 
         //if this is the end of a single line
@@ -120,11 +111,23 @@ void checkWebRequests() {
           delay(1);
 
           // The loop ignore all string that are not a get request
-          if(readString.indexOf("GET") == 0) {
-            int commandLocation = readString.indexOf("command=");
+          if(readS.indexOf("GET") == 0) {
+            int commandLocation = readS.indexOf("command=");
             if(commandLocation > 0) {
-              int command = readString.charAt(commandLocation + 8);
+              int command = readS.charAt(commandLocation + 8);
               doCommand(command);
+            }
+            int scott = readS.indexOf("scott=");
+            if(scott > 0) {
+              scott += 6;
+              int angle = readS.charAt(scott) - '0';
+              scott++;
+              while(readS.charAt(scott) != '.') {
+                angle *= 10;
+                angle += readS.charAt(scott) - '0';
+                scott++;
+              }
+              skullServo.write(angle);
             }
             htmlResponse(client);
             //stopping client
@@ -132,7 +135,7 @@ void checkWebRequests() {
             //debug("closed client");
           }
           //clearing string for next read
-          readString="";
+          readS="";
         }
       }
     }
@@ -165,6 +168,28 @@ void doRead() {
     int command = Serial.read();    
     doCommand(command);
   }
+}
+
+/** Check the button state and light led */
+void checkButton() {
+  // read the state of the pushbutton value:
+  int buttonState = digitalRead(UPPER_SWITCH);
+  // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
+  if (buttonState == HIGH) {
+    // turn LED on:
+    digitalWrite(LED, HIGH);
+  } else {
+    // turn LED off:
+    digitalWrite(LED, LOW);
+  }
+}
+
+/** Simple int read */
+int parseString(String s, int from, int to) {
+  char carray[6];
+  s.substring(from, to).toCharArray(carray, to - from + 1);
+  int i = atoi(carray);
+  return i;
 }
 
 /** Need to set timers since we are single threaded.  Need to continue to loop */
@@ -262,8 +287,8 @@ void doCommand(int command) {
   if(command == 'C') {
     chatterJaw(5);
   }
-  if(command == '1') {
-    skullServo.write(10);
+  if(command == 't') {
+    callPage(computer, 'c');
   }
   if(command == '2') {
     skullServo.write(40);
@@ -340,4 +365,48 @@ float readDistance() {
   distance = ((float) duration)/1776; // in feet
   
   return distance;
+}
+
+void callPage(IPAddress location, char command) {
+  EthernetClient client;
+
+  // if you get a connection, report back via serial:
+  if (client.connect(location, 8080)) {
+    Serial.println("connected");
+    // Make a HTTP request:
+    client.print("GET /halloween/doorbell.jsp?command=");
+    client.print(command);
+    client.println(" HTTP/1.1");
+    client.println("Host: www.ninox.com");
+    client.println("Connection: close");
+    client.println();
+
+    getPage(client);
+  } 
+  else {
+    // if you didn't get a connection to the server:
+    Serial.println("connection failed");
+  }
+
+}
+
+void getPage(EthernetClient client)
+{
+  int reading = 1;
+  while(reading > 0) {
+    // if there are incoming bytes available 
+    // from the server, read them and print them:
+    if (client.available()) {
+      char c = client.read();
+      Serial.print(c);
+    }
+
+    // if the server's disconnected, stop the client:
+    if (!client.connected()) {
+      Serial.println();
+      Serial.println("disconnecting.");
+      client.stop();
+      reading = 0;
+    }
+  }
 }
