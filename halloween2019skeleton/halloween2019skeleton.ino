@@ -6,27 +6,15 @@
 /// Walk through the pins
 #define SERIAL_IN 0
 #define SERIAL_OUT 1
-
-#define NEGATIVE_MOTOR 2   // Other side
-#define POSITIVE_MOTOR 3    // Two relays control the motor
-// #define SD_CARD_BLOCK 4 - I cut PIN 4 on the ethernet board to use it - might need to tie it high
-#define EYES_PIN 4
-#define UPPER_SWITCH 5
-#define SKULL_SERVO 6    // 
+#define EYES_PIN 3
+#define SD_CARD_BLOCK 4
+#define SKULL_SERVO 6
 #define JAW_SERVO 7
-#define TRIG_PIN 8       // Trigger pin for echo
-#define ECHO_PIN 9       // Pin for reading in1
-#define LED 13
 // Pin 10-13 are used by ethernet shield
 
 #define JAW_OPEN 130
 #define JAW_CLOSED 50
 #define JAW_DELAY 200L
-
-#define RELOAD_DELAY 5000L
-
-boolean bladeUp = false;
-boolean armed = false;
 
 Servo skullServo;
 int skullAt = 90;
@@ -35,15 +23,8 @@ boolean jawOpen = false;
 long jawTimer = 0;
 int jawMoves = 0;
 
-long reloadTimer = 0;
-boolean autoReload = true;
-
-long armedTimer = 0;
-
-int counter = 0;
-
-byte mac[] = { 0xDE, 0xEF, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
-byte ip[] = { 192, 168, 0, 21 }; // arduino server ip in lan
+byte mac[] = { 0xDE, 0xDD, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
+byte ip[] = { 192, 168, 0, 22 }; // arduino server ip in lan
 EthernetServer server(80); //arduino server port
 IPAddress computer(192,168,0,100);
 
@@ -52,19 +33,10 @@ IPAddress computer(192,168,0,100);
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel eyes = Adafruit_NeoPixel(2, EYES_PIN, NEO_RGB + NEO_KHZ800);
+Adafruit_NeoPixel eyes = Adafruit_NeoPixel(2, EYES_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
   // initialize digital pins.
-  pinMode(POSITIVE_MOTOR, OUTPUT);
-  digitalWrite(POSITIVE_MOTOR, HIGH);    // turn the drill off
-  pinMode(NEGATIVE_MOTOR, OUTPUT);
-  digitalWrite(NEGATIVE_MOTOR, HIGH);    // turn the drill off
-  pinMode(UPPER_SWITCH, INPUT);
-
-  pinMode(TRIG_PIN, OUTPUT); // Sets the trigPin as an Output
-  pinMode(ECHO_PIN, INPUT); // Sets the echoPin as an Input
-
   skullServo.attach(SKULL_SERVO);  // attaches the servo on a pin to the servo object 
   skullServo.write(skullAt);
   jawServo.attach(JAW_SERVO);
@@ -76,30 +48,30 @@ void setup() {
 
   // Eyes
   eyes.begin();
-  setEyes(eyes.Color(0, 0, 100));
-
+  eyes.setPixelColor(0, eyes.Color(50, 50, 0));
+  eyes.setPixelColor(1, eyes.Color(50, 50, 0));
+  eyes.setPixelColor(2, eyes.Color(50, 50, 0));
+  eyes.show();
+  
   // Network start
   Ethernet.begin(mac, ip);
   server.begin();
   debug("Setup complete");
 
-  // disable SD card - not needed with bent pin
-  //pinMode(SD_CARD_BLOCK, OUTPUT);
-  //digitalWrite(SD_CARD_BLOCK, HIGH);
+  // disable SD card
+  pinMode(SD_CARD_BLOCK, OUTPUT);
+  digitalWrite(SD_CARD_BLOCK, HIGH);
 }
 
 void loop() {
   doRead();
   
-  if(armed && bladeUp) {
-    if(holeBlocked()) {
-      dropTheBlade();
-    }
-  }
-
-  checkButton();
   checkTimers();
-  checkWebRequests();
+  //checkWebRequests();
+  //rainbowCycle(100);
+  eyes.setPixelColor(0, eyes.Color(50, 50, 0));
+  eyes.setPixelColor(1, eyes.Color(50, 50, 0));
+
   delay(20);
 }
 
@@ -190,20 +162,6 @@ void doRead() {
   }
 }
 
-/** Check the button state and light led */
-void checkButton() {
-  // read the state of the pushbutton value:
-  int buttonState = digitalRead(UPPER_SWITCH);
-  // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
-  if (buttonState == HIGH) {
-    // turn LED on:
-    digitalWrite(LED, HIGH);
-  } else {
-    // turn LED off:
-    digitalWrite(LED, LOW);
-  }
-}
-
 /** Simple int read */
 int parseString(String s, int from, int to) {
   char carray[6];
@@ -223,43 +181,10 @@ void checkTimers() {
       jawTimer = 0;
     }
   }
-  if(reloadTimer != 0 && reloadTimer < millis()) {
-    reloadTimer = 0;
-    raiseTheBlade();
-  }
-  if(armedTimer != 0 && armedTimer < millis()) {
-    armedTimer = 0;
-    armed = true;
-  }
 }
 
 void debug(String s) {
   Serial.println(s);  
-}
-
-void raiseTheBlade() {
-  unsigned long endBy = millis() + 1100;
-  
-  digitalWrite(NEGATIVE_MOTOR, LOW);    // turn the drill on
-  while(digitalRead(UPPER_SWITCH) == LOW && endBy > millis())
-    delay(1);
-  digitalWrite(NEGATIVE_MOTOR, HIGH);    // turn the drill off
-  bladeUp = true;
-  debug("Blade Up");
-  armedTimer = millis() + 2000L;
-}
-
-void dropTheBlade() {
-  debug("Lower the blade");
-  counter++;
-  Serial.println(counter);
-  digitalWrite(POSITIVE_MOTOR, LOW);    // turn the drill off
-  delay(700);
-  digitalWrite(POSITIVE_MOTOR, HIGH);    // turn the drill off  
-  bladeUp = false;       
-  if(autoReload) 
-    reloadTimer = millis() + RELOAD_DELAY;
-  armed = false;
 }
 
 void openJaw() {
@@ -286,23 +211,13 @@ void chatterJaw(int chomps) {
 
 /** Perform an action */
 void doCommand(int command) {
-  if(command == 'U') {    // UP - Raise the blade
-    raiseTheBlade();
-  }
-  if(command == 'L') {    // LOWER - Drop the blade
-    dropTheBlade();
-  }
+  Serial.println(command);
   if(command == 'J') {
+    Serial.println("open jaw");
     openJaw();
   }
   if(command == 'K') {
     closeJaw();
-  }
-  if(command == 'R') {
-    autoReload = true;
-  }
-  if(command == 'r') {
-    autoReload = false;
   }
   if(command == 'C') {
     chatterJaw(5);
@@ -314,12 +229,24 @@ void doCommand(int command) {
     skullServo.write(40);
   }
   if(command == '3') {
+    Serial.println("Left");
+  eyes.setPixelColor(0, eyes.Color(50, 0, 0));
+  eyes.setPixelColor(1, eyes.Color(50, 0, 0));
+  eyes.show();
     skullServo.write(70);
   }
   if(command == '4') {
+    Serial.println("Straight");
+  eyes.setPixelColor(0, eyes.Color(255, 255, 255));
+  eyes.setPixelColor(1, eyes.Color(255, 255, 255));
+  eyes.show();
     skullServo.write(90);
   }
   if(command == '5') {
+    Serial.println("Right");
+  eyes.setPixelColor(0, eyes.Color(0, 0, 50));
+  eyes.setPixelColor(1, eyes.Color(0, 0, 50));
+  eyes.show();
     skullServo.write(110);
   }
   if(command == '6') {
@@ -328,63 +255,6 @@ void doCommand(int command) {
   if(command == '7') {
     skullServo.write(170);
   }
-}
-
-/** Read the distance from the echo sensor - returned in 1/1776th of a foot */
-long readDistanceLong() {
-  long duration;
-
-  // Clears the trigPin
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  
-  // Sets the trigPin on HIGH state for 10 micro seconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  
-  // Reads the echoPin, returns the sound wave travel time in microseconds - timeout for max default is 200ms
-  duration = pulseIn(ECHO_PIN, HIGH, 30000ul);  
-  
-  return duration;
-}
-
-boolean holeBlocked() {
-  boolean nothing = false;
-  for(int i = 0; i < 4; i++) {
-    if(readDistanceLong() > 1776ul) {   //  than a foot
-      nothing = true;
-    }
-  }
-  return !nothing;
-}
-
-/** Read the distance from the echo sensor - returned in ft */
-float readDistance() {
-  long duration;
-  float distance;
-
-  // Clears the trigPin
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  
-  // Sets the trigPin on HIGH state for 10 micro seconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  
-  // Reads the echoPin, returns the sound wave travel time in microseconds - timeout for max default is 200ms
-  duration = pulseIn(ECHO_PIN, HIGH, 30000ul);
-  
-  // Calculating the distance
-  //distance= duration*0.034/2;
-  
-  //distance = (((float) duration)/2) / 74;
-  //distance /= 12;
-
-  distance = ((float) duration)/1776; // in feet
-  
-  return distance;
 }
 
 void setEyes(uint32_t color) {
@@ -434,5 +304,32 @@ void getPage(EthernetClient client)
       client.stop();
       reading = 0;
     }
+  }
+}
+
+// Slightly different, this makes the rainbow equally distributed throughout
+void rainbowCycle(uint8_t wait) {
+  uint16_t i, j;
+
+  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
+    for(i=0; i< eyes.numPixels(); i++) {
+      eyes.setPixelColor(i, Wheel(((i * 256 / eyes.numPixels()) + j) & 255));
+    }
+    eyes.show();
+    delay(wait);
+  }
+}
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+   return eyes.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if(WheelPos < 170) {
+   WheelPos -= 85;
+   return eyes.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else {
+   WheelPos -= 170;
+   return eyes.Color(0, WheelPos * 3, 255 - WheelPos * 3);
   }
 }

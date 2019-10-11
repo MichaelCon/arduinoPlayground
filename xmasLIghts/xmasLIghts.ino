@@ -4,7 +4,7 @@
 #include <Ethernet.h>
 
 #define PIN 6
-#define N 50
+#define N 2
 
 // strip.Color(84, 44, 10) <- yellowish Casye and Jen liked 
 
@@ -57,8 +57,8 @@ void loop() {
 //  theaterChase(strip.Color(  0,   0, 127), 50); // Blue
 //
 //  rainbow(20);
-//  rainbowCycle(20);
-  theaterChaseRainbow(50);
+  rainbowCycle(15);
+  //theaterChaseRainbow(50);
 //checkWebRequests();
 //checkNetwork();
 delay(200);
