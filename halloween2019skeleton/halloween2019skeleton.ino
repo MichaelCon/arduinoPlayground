@@ -1,12 +1,12 @@
 // Guillotine control + skeleton
 #include <Servo.h>
 #include <Ethernet.h>
-#include <Adafruit_NeoPixel.h>
+#include <FastLED.h>
 
 /// Walk through the pins
 #define SERIAL_IN 0
 #define SERIAL_OUT 1
-#define EYES_PIN 3
+#define EYES_PIN 5
 #define SD_CARD_BLOCK 4
 #define SKULL_SERVO 6
 #define JAW_SERVO 7
@@ -24,16 +24,13 @@ long jawTimer = 0;
 int jawMoves = 0;
 
 byte mac[] = { 0xDE, 0xDD, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
-byte ip[] = { 192, 168, 0, 22 }; // arduino server ip in lan
+//byte ip[] = { 192, 168, 0, 22 }; // arduino server ip in lan
+byte ip[] = { 10, 0, 0, 99 }; // arduino server ip in lan
 EthernetServer server(80); //arduino server port
 IPAddress computer(192,168,0,100);
 
 // Initialize 2 eyes
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel eyes = Adafruit_NeoPixel(2, EYES_PIN, NEO_GRB + NEO_KHZ800);
+CRGB leds[3];
 
 void setup() {
   // initialize digital pins.
@@ -47,11 +44,13 @@ void setup() {
   debug("setup complete");
 
   // Eyes
-  eyes.begin();
-  eyes.setPixelColor(0, eyes.Color(50, 50, 0));
-  eyes.setPixelColor(1, eyes.Color(50, 50, 0));
-  eyes.setPixelColor(2, eyes.Color(50, 50, 0));
-  eyes.show();
+  //FastLED.addLeds<NEOPIXEL, EYES_PIN>(leds, 2);
+  FastLED.addLeds<WS2812B, EYES_PIN, RGB>(leds, 3);
+
+  leds[0] = CRGB::Red;
+  leds[1] = CRGB::Red;
+  leds[2] = CRGB::Black;
+  FastLED.show(); 
   
   // Network start
   Ethernet.begin(mac, ip);
@@ -63,14 +62,18 @@ void setup() {
   digitalWrite(SD_CARD_BLOCK, HIGH);
 }
 
+int redInt = 0;
 void loop() {
   doRead();
   
   checkTimers();
-  //checkWebRequests();
+  checkWebRequests();
   //rainbowCycle(100);
-  eyes.setPixelColor(0, eyes.Color(50, 50, 0));
-  eyes.setPixelColor(1, eyes.Color(50, 50, 0));
+//  if(redInt > 200)
+//    redInt = 0;
+//  redInt += 25;
+//  leds[0] = CRGB(redInt, 0, 0);
+//  FastLED.show(); 
 
   delay(20);
 }
@@ -105,8 +108,28 @@ void checkWebRequests() {
             int scott = readS.indexOf("scott=");
             if(scott > 0) {
               scott += 6;
-              int angle = parseNumber(readS, scott + 6);
+              int angle = parseNumber(readS, scott);
               skullServo.write(angle);
+            }
+            int eyes = readS.indexOf("eyes=");
+            if(eyes > 0) {
+              eyes += 5;
+              int r1 = parseNumber(readS, eyes);
+              eyes = readS.indexOf(",", eyes + 1) + 1;
+              int g1 = parseNumber(readS, eyes);
+              eyes = readS.indexOf(",", eyes + 1) + 1;
+              int b1 = parseNumber(readS, eyes);
+              eyes = readS.indexOf(",", eyes + 1) + 1;
+              int r2 = parseNumber(readS, eyes);
+              eyes = readS.indexOf(",", eyes + 1) + 1;
+              int g2 = parseNumber(readS, eyes);
+              eyes = readS.indexOf(",", eyes + 1) + 1;
+              int b2 = parseNumber(readS, eyes);
+
+  Serial.println("--------");
+              leds[0] = CRGB(r1, g1, b1);
+              leds[1] = CRGB(r2, g2, b2);
+              FastLED.show(); 
             }
             htmlResponse(client);
             //stopping client
@@ -131,6 +154,7 @@ int parseNumber(String s, int start) {
     start++;
     next = s.charAt(start);
   }
+  Serial.println(val);
   return val;
 }
 
@@ -230,23 +254,23 @@ void doCommand(int command) {
   }
   if(command == '3') {
     Serial.println("Left");
-  eyes.setPixelColor(0, eyes.Color(50, 0, 0));
-  eyes.setPixelColor(1, eyes.Color(50, 0, 0));
-  eyes.show();
+  leds[0] = CRGB::Black;
+  leds[1] = CRGB::Black;
+  FastLED.show(); 
     skullServo.write(70);
   }
   if(command == '4') {
     Serial.println("Straight");
-  eyes.setPixelColor(0, eyes.Color(255, 255, 255));
-  eyes.setPixelColor(1, eyes.Color(255, 255, 255));
-  eyes.show();
+  leds[0] = CHSV( HUE_GREEN, 255, 100);
+  leds[1] = CHSV( HUE_GREEN, 255, 100);
+  FastLED.show(); 
     skullServo.write(90);
   }
   if(command == '5') {
     Serial.println("Right");
-  eyes.setPixelColor(0, eyes.Color(0, 0, 50));
-  eyes.setPixelColor(1, eyes.Color(0, 0, 50));
-  eyes.show();
+  leds[0] = CRGB::Blue;
+  leds[1] = CRGB::Blue;
+  FastLED.show(); 
     skullServo.write(110);
   }
   if(command == '6') {
@@ -258,9 +282,9 @@ void doCommand(int command) {
 }
 
 void setEyes(uint32_t color) {
-  eyes.setPixelColor(0, color);
-  eyes.setPixelColor(1, color);
-  eyes.show();
+//  eyes.setPixelColor(0, color);
+//  eyes.setPixelColor(1, color);
+//  eyes.show();
 }
 
 void callPage(IPAddress location, char command) {
@@ -304,32 +328,5 @@ void getPage(EthernetClient client)
       client.stop();
       reading = 0;
     }
-  }
-}
-
-// Slightly different, this makes the rainbow equally distributed throughout
-void rainbowCycle(uint8_t wait) {
-  uint16_t i, j;
-
-  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
-    for(i=0; i< eyes.numPixels(); i++) {
-      eyes.setPixelColor(i, Wheel(((i * 256 / eyes.numPixels()) + j) & 255));
-    }
-    eyes.show();
-    delay(wait);
-  }
-}
-
-// Input a value 0 to 255 to get a color value.
-// The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos) {
-  if(WheelPos < 85) {
-   return eyes.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-  } else if(WheelPos < 170) {
-   WheelPos -= 85;
-   return eyes.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  } else {
-   WheelPos -= 170;
-   return eyes.Color(0, WheelPos * 3, 255 - WheelPos * 3);
   }
 }

@@ -3,8 +3,8 @@
 #include <SPI.h>
 #include <Ethernet.h>
 
-#define PIN 6
-#define N 2
+#define PIN 5
+#define N 3
 
 // strip.Color(84, 44, 10) <- yellowish Casye and Jen liked 
 
@@ -15,7 +15,7 @@
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(N, PIN, NEO_RGB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(N, PIN, NEO_GRB + NEO_KHZ800);
 
 byte mac[] = { 0xDE, 0xAD, 0xEE, 0xEF, 0xFE, 0xEF }; //physical mac address
 byte ip[] = { 192, 168, 1, 21 }; // arduino server ip in lan
@@ -34,7 +34,7 @@ void setup() {
 //  server.begin();
 //  debug("Setup complete");
 
-  setAll(strip.Color(84, 44, 10));
+  setAll(strip.Color(0,0,50));
 }
 int i = 0;
 
@@ -57,7 +57,7 @@ void loop() {
 //  theaterChase(strip.Color(  0,   0, 127), 50); // Blue
 //
 //  rainbow(20);
-  rainbowCycle(15);
+  //rainbowCycle(15);
   //theaterChaseRainbow(50);
 //checkWebRequests();
 //checkNetwork();
