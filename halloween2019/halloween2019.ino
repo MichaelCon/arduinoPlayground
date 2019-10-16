@@ -1,7 +1,5 @@
-// Guillotine control + skeleton
-#include <Servo.h>
+// Guillotine control 
 #include <Ethernet.h>
-#include <Adafruit_NeoPixel.h>
 
 /// Walk through the pins
 #define SERIAL_IN 0
@@ -9,31 +7,17 @@
 
 #define NEGATIVE_MOTOR 2   // Other side
 #define POSITIVE_MOTOR 3    // Two relays control the motor
-// #define SD_CARD_BLOCK 4 - I cut PIN 4 on the ethernet board to use it - might need to tie it high
-#define EYES_PIN 4
+#define SD_CARD_BLOCK 4
 #define UPPER_SWITCH 5
-#define SKULL_SERVO 6    // 
-#define JAW_SERVO 7
 #define TRIG_PIN 8       // Trigger pin for echo
 #define ECHO_PIN 9       // Pin for reading in1
 #define LED 13
 // Pin 10-13 are used by ethernet shield
 
-#define JAW_OPEN 130
-#define JAW_CLOSED 50
-#define JAW_DELAY 200L
-
 #define RELOAD_DELAY 5000L
 
 boolean bladeUp = false;
 boolean armed = false;
-
-Servo skullServo;
-int skullAt = 90;
-Servo jawServo;
-boolean jawOpen = false;
-long jawTimer = 0;
-int jawMoves = 0;
 
 long reloadTimer = 0;
 boolean autoReload = true;
@@ -43,16 +27,9 @@ long armedTimer = 0;
 int counter = 0;
 
 byte mac[] = { 0xDE, 0xEF, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
-byte ip[] = { 192, 168, 0, 21 }; // arduino server ip in lan
+byte ip[] = { 10, 0, 0, 99 }; // arduino server ip in lan
 EthernetServer server(80); //arduino server port
-IPAddress computer(192,168,0,100);
-
-// Initialize 2 eyes
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel eyes = Adafruit_NeoPixel(2, EYES_PIN, NEO_RGB + NEO_KHZ800);
+IPAddress computer(10,0,0,1);
 
 void setup() {
   // initialize digital pins.
@@ -65,18 +42,9 @@ void setup() {
   pinMode(TRIG_PIN, OUTPUT); // Sets the trigPin as an Output
   pinMode(ECHO_PIN, INPUT); // Sets the echoPin as an Input
 
-  skullServo.attach(SKULL_SERVO);  // attaches the servo on a pin to the servo object 
-  skullServo.write(skullAt);
-  jawServo.attach(JAW_SERVO);
-  jawServo.write(JAW_CLOSED);
-
   // Open serial communications and wait for port to open:
   Serial.begin(9600);    
   debug("setup complete");
-
-  // Eyes
-  eyes.begin();
-  setEyes(eyes.Color(0, 0, 100));
 
   // Network start
   Ethernet.begin(mac, ip);
@@ -84,8 +52,8 @@ void setup() {
   debug("Setup complete");
 
   // disable SD card - not needed with bent pin
-  //pinMode(SD_CARD_BLOCK, OUTPUT);
-  //digitalWrite(SD_CARD_BLOCK, HIGH);
+  pinMode(SD_CARD_BLOCK, OUTPUT);
+  digitalWrite(SD_CARD_BLOCK, HIGH);
 }
 
 void loop() {
@@ -129,12 +97,6 @@ void checkWebRequests() {
             if(commandLocation > 0) {
               int command = readS.charAt(commandLocation + 8);
               doCommand(command);
-            }
-            int scott = readS.indexOf("scott=");
-            if(scott > 0) {
-              scott += 6;
-              int angle = parseNumber(readS, scott + 6);
-              skullServo.write(angle);
             }
             htmlResponse(client);
             //stopping client
@@ -214,15 +176,6 @@ int parseString(String s, int from, int to) {
 
 /** Need to set timers since we are single threaded.  Need to continue to loop */
 void checkTimers() {
-  if(jawTimer != 0 && jawTimer < millis()) {
-    toggleJaw();
-    jawMoves--;
-    if(jawMoves > 0) {
-      jawTimer = millis() + JAW_DELAY;
-    } else {
-      jawTimer = 0;
-    }
-  }
   if(reloadTimer != 0 && reloadTimer < millis()) {
     reloadTimer = 0;
     raiseTheBlade();
@@ -262,28 +215,6 @@ void dropTheBlade() {
   armed = false;
 }
 
-void openJaw() {
-  jawOpen = true;
-  jawServo.write(JAW_OPEN);
-}
-void closeJaw() {
-  jawOpen = false;
-  jawServo.write(JAW_CLOSED);
-}
-void toggleJaw() {
-  if(jawOpen) {
-    closeJaw();
-  } else {
-    openJaw();
-  }
-}
-/** Open and close the jaw "chomps" number of times */
-void chatterJaw(int chomps) {
-  jawMoves = (chomps * 2) - 1;
-  openJaw();
-  jawTimer = millis() + JAW_DELAY;
-}
-
 /** Perform an action */
 void doCommand(int command) {
   if(command == 'U') {    // UP - Raise the blade
@@ -292,41 +223,14 @@ void doCommand(int command) {
   if(command == 'L') {    // LOWER - Drop the blade
     dropTheBlade();
   }
-  if(command == 'J') {
-    openJaw();
-  }
-  if(command == 'K') {
-    closeJaw();
-  }
   if(command == 'R') {
     autoReload = true;
   }
   if(command == 'r') {
     autoReload = false;
   }
-  if(command == 'C') {
-    chatterJaw(5);
-  }
   if(command == 't') {
     callPage(computer, 'c');
-  }
-  if(command == '2') {
-    skullServo.write(40);
-  }
-  if(command == '3') {
-    skullServo.write(70);
-  }
-  if(command == '4') {
-    skullServo.write(90);
-  }
-  if(command == '5') {
-    skullServo.write(110);
-  }
-  if(command == '6') {
-    skullServo.write(140);
-  }
-  if(command == '7') {
-    skullServo.write(170);
   }
 }
 
@@ -385,12 +289,6 @@ float readDistance() {
   distance = ((float) duration)/1776; // in feet
   
   return distance;
-}
-
-void setEyes(uint32_t color) {
-  eyes.setPixelColor(0, color);
-  eyes.setPixelColor(1, color);
-  eyes.show();
 }
 
 void callPage(IPAddress location, char command) {

@@ -27,7 +27,6 @@ byte mac[] = { 0xDE, 0xDD, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
 //byte ip[] = { 192, 168, 0, 22 }; // arduino server ip in lan
 byte ip[] = { 10, 0, 0, 99 }; // arduino server ip in lan
 EthernetServer server(80); //arduino server port
-IPAddress computer(192,168,0,100);
 
 // Initialize 2 eyes
 CRGB leds[3];
@@ -245,9 +244,6 @@ void doCommand(int command) {
   }
   if(command == 'C') {
     chatterJaw(5);
-  }
-  if(command == 't') {
-    callPage(computer, 'c');
   }
   if(command == '2') {
     skullServo.write(40);
