@@ -14,7 +14,8 @@
 #define LED 13
 // Pin 10-13 are used by ethernet shield
 
-#define RELOAD_DELAY 5000L
+#define RELOAD_DELAY 5000L  // Time to leave blade down before raising it up again
+#define ARMED_DELAY 2500L   // Time to wait before blade can fall again
 
 boolean bladeUp = false;
 boolean armed = false;
@@ -27,9 +28,10 @@ long armedTimer = 0;
 int counter = 0;
 
 byte mac[] = { 0xDE, 0xEF, 0xFF, 0xEF, 0xFE, 0xEA }; //physical mac address
-byte ip[] = { 10, 0, 0, 99 }; // arduino server ip in lan
+byte ip[] = { 10, 0, 0, 98 }; // arduino server ip in lan
 EthernetServer server(80); //arduino server port
-IPAddress computer(10,0,0,1);
+IPAddress computer(10,0,0,12);
+boolean reportDrops = false;    // Make a web request when the blade falls.
 
 void setup() {
   // initialize digital pins.
@@ -136,9 +138,18 @@ void htmlResponse(EthernetClient client) {
     client.println("<BODY>");
     client.println("<H1></H1>");
     client.println("<a href=\"a\">Refresh</a><br/>");
-    client.println("<a href=\"a?command=1\">Right</a><br/>");
-    client.println("<a href=\"a?command=4\">Center</a><br/>");
-    client.println("<a href=\"a?command=7\">Left</a><br/>");
+    client.println("<a href=\"a?command=U\">Raise the blade</a><br/>");
+    client.println("<a href=\"a?command=L\">Lower the blade</a><br/>");
+    if(autoReload) {
+      client.println("Auto reload on. <a href=\"a?command=r\">Turn Off</a><br/>");
+    } else {
+      client.println("Auto reload off. <a href=\"a?command=R\">Turn On</a><br/>");
+    }
+    if(reportDrops) {
+      client.println("reportDrops on. <a href=\"a?command=d\">Turn Off</a><br/>");
+    } else {
+      client.println("reportDrops off. <a href=\"a?command=D\">Turn On</a><br/>");
+    }
     client.println("<br/>");
     client.println("</BODY>");
     client.println("</HTML>");
@@ -199,12 +210,16 @@ void raiseTheBlade() {
   digitalWrite(NEGATIVE_MOTOR, HIGH);    // turn the drill off
   bladeUp = true;
   debug("Blade Up");
-  armedTimer = millis() + 2000L;
+  armedTimer = millis() + ARMED_DELAY;
 }
 
+/** Drop the blade - Note this is a blocking call that holds the thread - change to timer if needed */
 void dropTheBlade() {
   debug("Lower the blade");
   counter++;
+  if(reportDrops) {         // If reporting is on, tell the server
+    callPage(computer, 'd');;
+  }
   Serial.println(counter);
   digitalWrite(POSITIVE_MOTOR, LOW);    // turn the drill off
   delay(700);
@@ -228,6 +243,12 @@ void doCommand(int command) {
   }
   if(command == 'r') {
     autoReload = false;
+  }
+  if(command == 'D') {
+    reportDrops = true;
+  }
+  if(command == 'd') {
+    reportDrops = false;
   }
   if(command == 't') {
     callPage(computer, 'c');
@@ -298,11 +319,9 @@ void callPage(IPAddress location, char command) {
   if (client.connect(location, 8080)) {
     Serial.println("connected");
     // Make a HTTP request:
-    client.print("GET /halloween/doorbell.jsp?command=");
+    client.print("GET /a?command=");
     client.print(command);
     client.println(" HTTP/1.1");
-    client.println("Host: www.ninox.com");
-    client.println("Connection: close");
     client.println();
 
     getPage(client);

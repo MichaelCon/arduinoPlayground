@@ -18,6 +18,8 @@
 
 Servo skullServo;
 int skullAt = 90;
+
+
 Servo jawServo;
 boolean jawOpen = false;
 long jawTimer = 0;
@@ -125,7 +127,6 @@ void checkWebRequests() {
               eyes = readS.indexOf(",", eyes + 1) + 1;
               int b2 = parseNumber(readS, eyes);
 
-  Serial.println("--------");
               leds[0] = CRGB(r1, g1, b1);
               leds[1] = CRGB(r2, g2, b2);
               FastLED.show(); 
